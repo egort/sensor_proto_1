@@ -2,7 +2,7 @@
           ##
          ###
         # ##
-          ##
+          ##      RECEIVER NODE
           ##
          ####
 */
@@ -11,12 +11,12 @@
 #include <SPI.h>
 #include <plainRFM69.h>
 
-#define DHTPIN 3 // DHT11 sensor pin
+#define DHTPIN 3 // pin DHT11
 #define SLAVE_SELECT_PIN 10 // SS/NSS line on SPI bus
-#define SENDER_DETECT_PIN A0 // tie this pin down on the receiver.
-#define RESET_PIN 8 // connected to the reset pin of the RFM69
-#define DIO2_PIN 2 // Pin DIO 2 on the RFM69 is attached to this digital pin which should have interrupt capability (2 or 3)
-#define INTERRUPT_NUMBER 0 // on Pro Mini INT0 at pin 2, INT1 at 3.
+#define SENDER_DETECT_PIN A0 // pull down for receiver mode, or up if it is sender
+#define RESET_PIN 8 // reset pin RFM69
+#define DIO2_PIN 2 // data pin DIO2 RFM69 should be attached to digital pin with interrupt capability (2 or 3 for Pro Mini)
+#define INTERRUPT_NUMBER 0 // on Pro Mini INT0 at pin 2, INT1 at 3
 
 /*
     This is a minimal example with the interrupt to call poll().
@@ -26,6 +26,7 @@
 dht11 DHT11;
 plainRFM69 rfm = plainRFM69(SLAVE_SELECT_PIN);
 
+// calculate "heat index" based on humidity and temperature
 double heatIndex(double tempC, double humidity)
 {
   double c1 = -42.38, c2 = 2.049, c3 = 10.14, c4 = -0.2248, c5= -6.838e-3, c6=-5.482e-2, c7=1.228e-3, c8=8.528e-4, c9=-1.99e-6  ;
@@ -39,32 +40,32 @@ double heatIndex(double tempC, double humidity)
 }
 
 void interrupt_RFM(){
-    rfm.poll(); // in the interrupt, call the poll function.
+    rfm.poll(); // in the interrupt, call the poll function
 }
 
 void setup() {
   SPI.begin();
   Serial.begin(19200);
   Serial.println("--DHT11 @ RFM69 here!");
-  // <!-- RFM69 INIT
+  // <!-- RFM69 setup
   bareRFM69::reset(RESET_PIN); // sent the RFM69 a hard-reset.
   rfm.setRecommended(); // set recommended paramters in RFM69.
   rfm.setPacketType(false, false); // set the used packet type.
   rfm.setBufferSize(2);   // set the internal buffer size.
   rfm.setPacketLength(4); // set the packet length.
-  rfm.setFrequency((uint32_t) 915*1000*1000); // set the frequency.
+  rfm.setFrequency((uint32_t) 915*1000*1000); // set the frequency to 915MHz
   // baudrate is default, 4800 bps now.
   rfm.receive(); // set it to receiving mode.
   /*
       setup up interrupts such that we don't have to call poll() in a loop.
   */
   rfm.setDioMapping1(RFM69_PACKET_DIO_2_AUTOMODE); // tell the RFM to represent whether we are in automode on DIO 2.
-  pinMode(DIO2_PIN, INPUT); // set pinmode to input.
+  pinMode(DIO2_PIN, INPUT); // set pinmode to input
   SPI.usingInterrupt(INTERRUPT_NUMBER); // Tell the SPI library we're going to use the SPI bus from an interrupt.
   attachInterrupt(INTERRUPT_NUMBER, interrupt_RFM, CHANGE); // hook our interrupt function to any edge.
-  rfm.receive(); // start receiving
-  pinMode(SENDER_DETECT_PIN, INPUT_PULLUP);
-  // RFM69 INIT -->
+  rfm.receive();       // start receiving
+  pinMode(SENDER_DETECT_PIN, INPUT_PULLUP); // sernder|receiver switch pin
+  // RFM69 setup -->
   delay(5);
 }
 
