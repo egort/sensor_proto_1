@@ -9,9 +9,10 @@
 
 #include "dht11.h"
 #include <SPI.h>
-#include <plainRFM69.h>
+#include "plainRFM69.h"
 
 #define DHTPIN 3 // pin DHT11
+#define DHTPOLL 2000 // DHT11 polling interval (ms)
 #define SLAVE_SELECT_PIN 10 // SS/NSS line on SPI bus
 #define SENDER_DETECT_PIN A0 // pull down for receiver mode, or up if it is sender
 #define RESET_PIN 8 // reset pin RFM69
@@ -25,6 +26,7 @@
 
 dht11 DHT11;
 plainRFM69 rfm = plainRFM69(SLAVE_SELECT_PIN);
+uint32_t start_time = millis(); // polling delay counter
 
 // calculate "heat index" based on humidity and temperature
 double heatIndex(double tempC, double humidity)
@@ -42,7 +44,30 @@ double heatIndex(double tempC, double humidity)
 void interrupt_RFM(){
     rfm.poll(); // in the interrupt, call the poll function
 }
+// -----------------------------------------------------------------------------
+void receive(){
+    uint32_t counter = 0; // to count the messages.
 
+    while(true){
+        while(rfm.available()){ // for all available messages:
+
+            uint32_t received_count = 0; // temporary for the new counter.
+            uint8_t len = rfm.read(&received_count); // read the packet into the new_counter.
+
+            // print verbose output.
+            Serial.print("Packet ("); Serial.print(len); Serial.print("): ");Serial.println(received_count);
+
+            if (counter+1 != received_count){
+                // if the increment is larger than one, we lost one or more packets.
+                Serial.println("Packetloss detected!");
+            }
+
+            // assign the received counter to our counter.
+            counter = received_count;
+        }
+    }
+}
+// -----------------------------------------------------------------------------
 void setup() {
   SPI.begin();
   Serial.begin(19200);
@@ -69,35 +94,56 @@ void setup() {
   delay(5);
 }
 
-void loop() {
-
-  int dht = DHT11.read(DHTPIN);
-  float humi = DHT11.humidity;
-  float temp = DHT11.temperature;
-
-  switch (dht)
+void loop()
+{
+  if ((millis() - start_time) > DHTPOLL) // <!-- poll DHT11 every DHTPOLL ms
   {
-    case DHTLIB_OK:
+    start_time = millis();
+    switch (DHT11.read(DHTPIN))
     {
-		  Serial.println("OK");
-      Serial.print("Humidity (%): ");
-      Serial.println(humi, 2);
-      Serial.print("Temperature (°C): ");
-      Serial.println(temp, 2);
-      Serial.print("Heat index: ");
-      Serial.print(heatIndex(temp, humi));
-      Serial.println(" *C");
-    }
-		break;
-    case DHTLIB_ERROR_CHECKSUM:
-		  Serial.println("Checksum error");
-		break;
-    case DHTLIB_ERROR_TIMEOUT:
-		  Serial.println("Time out error");
-		break;
-    default:
-		  Serial.println("Unknown error");
-		break;
+      case DHTLIB_OK:
+      {
+        float humi = DHT11.humidity;
+        float temp = DHT11.temperature;
+        Serial.print("Humi1:");
+        Serial.print(humi, 2);
+        Serial.print(",Temp1:");
+        Serial.print(temp, 2);
+        Serial.print(",Heat1:");
+        Serial.println(heatIndex(temp, humi));
+      }
+  		break;
+      case DHTLIB_ERROR_CHECKSUM:
+  		  Serial.println("Err1:Checksum error");
+  		break;
+      case DHTLIB_ERROR_TIMEOUT:
+  		  Serial.println("Err1:Time out error");
+  		break;
+      default:
+  		  Serial.println("Err1:Unknown error");
+  		break;
+    } // poll DHT11 every DHTPOLL ms -->
   }
-  delay(2000);   // DHT11 is slow sensor, wait at least 2 sec
+}
+
+void receiver()
+{
+  uint32_t counter = 0; // to count the messages.
+  while(true)
+  {
+    while(rfm.available())
+    { // for all available messages:
+      uint32_t received_count = 0; // temporary for the new counter.
+      uint8_t len = rfm.read(&received_count); // read the packet into the new_counter.
+      // print verbose output.
+      Serial.print("Packet ("); Serial.print(len); Serial.print("): ");Serial.println(received_count);
+      if (counter+1 != received_count)
+      {
+        // if the increment is larger than one, we lost one or more packets.
+        Serial.println("Packetloss detected!");
+      }
+      // assign the received counter to our counter.
+      counter = received_count;
+    }
+  }
 }
