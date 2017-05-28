@@ -27,83 +27,74 @@
 dht11 DHT11;
 plainRFM69 rfm = plainRFM69(SLAVE_SELECT_PIN);
 uint32_t start_time = millis(); // polling delay counter
-String DHT11data = "";
+uint32_t c = 0;
 
-// ------ calculate "heat index" based on humidity and temperature -------------
-double heatIndex(double tempC, double humidity)
-{
-  double c1 = -42.38, c2 = 2.049, c3 = 10.14, c4 = -0.2248, c5= -6.838e-3, c6=-5.482e-2, c7=1.228e-3, c8=8.528e-4, c9=-1.99e-6  ;
-  double Tf = ((tempC*9)/5)+32;
-  double R = humidity;
-  double A = (( c5 * Tf) + c2) * Tf + c1;
-  double B = ((c7 * Tf) + c4) * Tf + c3;
-  double C = ((c9 * Tf) + c8) * Tf + c6;
-  double rv = (C * R + B) * R + A;
-  return rv;
-}
+
+
 // -----------------------------------------------------------------------------
-
-void readDHT11()
+String readDHT11()
 {
   switch (DHT11.read(DHTPIN))
   {
-    DHT11data = "";
+    //String DHT11data = "";
     case DHTLIB_OK:
     {
       float humi = DHT11.humidity;
       float temp = DHT11.temperature;
-      DHT11data = "Humi1:" +String(humi) +",Temp1:" +temp +",Heat1:" +heatIndex(temp, humi);
-      //Serial.print("Humi1:");
-      //Serial.print(humi, 2);
-      //Serial.print(",Temp1:");
-      //Serial.print(temp, 2);
-      //Serial.print(",Heat1:");
-      //Serial.println(heatIndex(temp, humi));
+      // <!-- calculate heat index
+      double c1 = -42.38, c2 = 2.049, c3 = 10.14, c4 = -0.2248, c5= -6.838e-3, c6=-5.482e-2, c7=1.228e-3, c8=8.528e-4, c9=-1.99e-6  ;
+      double Tf = ((temp*9)/5)+32;
+      double R = humi;
+      double A = (( c5 * Tf) + c2) * Tf + c1;
+      double B = ((c7 * Tf) + c4) * Tf + c3;
+      double C = ((c9 * Tf) + c8) * Tf + c6;
+      double heatindex = (C * R + B) * R + A;
+      // -->
+      return "Humi1:" +String(humi) +",Temp1:" +temp +",Heat1:" +heatindex;
+      //Serial.println(DHT11data);
     }
     break;
     case DHTLIB_ERROR_CHECKSUM:
       //Serial.println("Err1:Checksum error");
-      DHT11data = "Err1:Checksum error";
+      return "Err1:Checksum error";
     break;
     case DHTLIB_ERROR_TIMEOUT:
       //Serial.println("Err1:Time out error");
-      DHT11data = "Err1:Time out error";
+      return "Err1:Time out error";
     break;
     default:
       //Serial.println("Err1:Unknown error");
-      DHT11data = "Err1:Unknown error";
+      return "Err1:Unknown error";
     break;
   } // poll DHT11 every DHTPOLL ms -->
 }
+
+
+
+// --- read incoming data ------------------------------------------------------
+void receiver()
+{
+  char buffer[255] = {0};
+
+  while(rfm.available()) // for all available messages:
+  {
+      uint8_t len = rfm.read(&buffer); // read the packet into the new_counter.
+
+      // print verbose output.
+      Serial.print("Incoming packet ("); Serial.print(len); Serial.print("): ");Serial.println(buffer);
+  }
+}
+
+
 
 // -----------------------------------------------------------------------------
 void interrupt_RFM()
 {
     rfm.poll(); // in the interrupt, call the poll function
+    receiver(); // read received message
 }
 
-// -----------------------------------------------------------------------------
-void receive()
-{
-    uint32_t counter = 0; // to count the messages.
-    while(true){
-        while(rfm.available()){ // for all available messages:
 
-            uint32_t received_count = 0; // temporary for the new counter.
-            uint8_t len = rfm.read(&received_count); // read the packet into the new_counter.
-
-            // print verbose output.
-            Serial.print("Packet ("); Serial.print(len); Serial.print("): ");Serial.println(received_count);
-
-            if (counter+1 != received_count){
-                // if the increment is larger than one, we lost one or more packets.
-                Serial.println("Packetloss detected!");
-            }
-            // assign the received counter to our counter.
-            counter = received_count;
-        }
-    }
-}
 
 // -----------------------------------------------------------------------------
 void setup() {
@@ -131,16 +122,16 @@ void setup() {
   // RFM69 setup -->
   delay(5);
 }
+
+
+
 // -----------------------------------------------------------------------------
 void loop()
 {
-
-//  if (digitalRead(SENDER_DETECT_PIN) == LOW) // RECEIVER mode
-//  {
     if ((millis() - start_time) > DHTPOLL) // <!-- poll DHT11 every DHTPOLL ms
     {
       start_time = millis();
-      readDHT11();
+      Serial.print(String(c));Serial.println(readDHT11());
+      c++;
     }
-//  }
 }
