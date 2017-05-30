@@ -19,11 +19,6 @@
 #define DIO2_PIN 2 // data pin DIO2 RFM69 should be attached to digital pin with interrupt capability (2 or 3 for Pro Mini)
 #define INTERRUPT_NUMBER 0 // on Pro Mini INT0 at pin 2, INT1 at 3
 
-/*
-    This is a minimal example with the interrupt to call poll().
-    It transmits a 4 byte integer every 500 ms.
-*/
-
 dht11 DHT11;
 plainRFM69 rfm = plainRFM69(SLAVE_SELECT_PIN);
 uint32_t start_time = millis(); // polling delay counter
@@ -50,21 +45,21 @@ String readDHT11()
       double C = ((c9 * Tf) + c8) * Tf + c6;
       double heatindex = (C * R + B) * R + A;
       // -->
-      return "Humi1:" +String(humi) +",Temp1:" +temp +",Heat1:" +heatindex;
+      return "Humi1|" +String(humi) +"|Temp1|" +temp +"|Heat1|" +heatindex;
       //Serial.println(DHT11data);
     }
     break;
     case DHTLIB_ERROR_CHECKSUM:
       //Serial.println("Err1:Checksum error");
-      return "Err1:Checksum error";
+      return "Err1|Checksum";
     break;
     case DHTLIB_ERROR_TIMEOUT:
       //Serial.println("Err1:Time out error");
-      return "Err1:Time out error";
+      return "Err1|Time_out";
     break;
     default:
       //Serial.println("Err1:Unknown error");
-      return "Err1:Unknown error";
+      return "Err1|Unknown";
     break;
   } // poll DHT11 every DHTPOLL ms -->
 }
@@ -74,14 +69,13 @@ String readDHT11()
 // --- read incoming data ------------------------------------------------------
 void receiver()
 {
-  char buffer[255] = {0};
-
+  char buffer[64] = {0};
   while(rfm.available()) // for all available messages:
   {
-      uint8_t len = rfm.read(&buffer); // read the packet into the new_counter.
-
+      //uint8_t len = rfm.read(&buffer); // read the packet into the new_counter.
       // print verbose output.
-      Serial.print("Incoming packet ("); Serial.print(len); Serial.print("): ");Serial.println(buffer);
+      //Serial.print("Incoming packet ("); Serial.print(len); Serial.print("): ");Serial.println(buffer);
+      Serial.println(buffer);
   }
 }
 
@@ -106,7 +100,7 @@ void setup() {
   rfm.setRecommended(); // set recommended paramters in RFM69.
   rfm.setPacketType(false, false); // set the used packet type.
   rfm.setBufferSize(2);   // set the internal buffer size.
-  rfm.setPacketLength(4); // set the packet length.
+  rfm.setPacketLength(64); // set the packet length.
   rfm.setFrequency((uint32_t) 915*1000*1000); // set the frequency to 915MHz
   // baudrate is default, 4800 bps now.
   rfm.receive(); // set it to receiving mode.
